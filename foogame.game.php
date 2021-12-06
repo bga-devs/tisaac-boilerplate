@@ -39,6 +39,9 @@ use FOO\Managers\Players;
 
 class foogame extends Table
 {
+  use FOO\DebugTrait;
+  use FOO\States\DrawCardTrait;
+
   public static $instance = null;
   function __construct()
   {
@@ -83,10 +86,7 @@ class foogame extends Table
       'players' => Players::getUiData($pId),
     ];
   }
-function test(){
-  Cards::setupNewGame([], []);
 
-}
   /*
    * getGameProgression:
    */

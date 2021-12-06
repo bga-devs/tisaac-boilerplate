@@ -13,5 +13,51 @@
  * foogame stylesheet
  *
  */
+.player-container {
+  height: 250px;
+  margin: 10px 5px;
+  background-color: rgba(255, 255, 255, 0.5);
+  border-radius: 8px;
+  border-width: 1px;
+  border-style: solid; }
+  .player-container .player-name {
+    background-color: white;
+    border-radius: 5px;
+    width: 100px;
+    margin: 5px;
+    text-align: center;
+    border: 1px solid black;
+    padding: 3px; }
+  .player-container .player-hand {
+    display: flex; }
+    .player-container .player-hand .foo-card {
+      margin: 2px 5px; }
+
+.foo-card {
+  width: 100px;
+  height: 180px;
+  border-radius: 10px;
+  border: 1px solid black; }
+  .foo-card[data-color='0'] {
+    background-color: blue; }
+  .foo-card[data-color='1'] {
+    background-color: green; }
+  .foo-card[data-color='2'] {
+    background-color: pink; }
+  .foo-card[data-color='3'] {
+    background-color: yellow; }
+  .foo-card[data-color='4'] {
+    background-color: gray; }
+  .foo-card::before {
+    content: attr(data-value);
+    display: inline-block;
+    background: black;
+    border-radius: 10px;
+    width: 20px;
+    height: 20px;
+    color: white;
+    text-align: center;
+    margin-top: 5px;
+    margin-left: 5px; }
 
 /*# sourceMappingURL=foogame.css.map */

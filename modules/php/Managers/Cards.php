@@ -13,7 +13,7 @@ class Cards extends \FOO\Helpers\Pieces
 {
   protected static $table = 'cards';
   protected static $prefix = 'card_';
-  protected static $customFields = ['value', 'color', 'player_id'];
+  protected static $customFields = ['value', 'color'];
   protected static $autoreshuffle = false;
   protected static function cast($card)
   {
@@ -23,7 +23,7 @@ class Cards extends \FOO\Helpers\Pieces
       'location' => $locations[0],
       'value' => $card['value'],
       'color' => $card['color'],
-      'pId' => $card['player_id'],
+      'pId' => $locations[1] ?? null,
     ];
   }
 
@@ -66,12 +66,17 @@ class Cards extends \FOO\Helpers\Pieces
         $cards[] = [
           'value' => $value,
           'color' => $cId,
-//          'player_id' => null,
+          //          'player_id' => null,
         ];
       }
     }
 
     self::create($cards, 'deck');
     self::shuffle('deck');
+
+    // Draw each player 5 cards
+    foreach ($players as $pId => $player) {
+      self::pickForLocation(4, 'deck', ['hand', $pId]);
+    }
   }
 }

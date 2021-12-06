@@ -1,0 +1,26 @@
+.player-container {
+  height: 250px;
+  margin: 10px 5px;
+  background-color: rgba(255, 255, 255, 0.5);
+  border-radius: 8px;
+  border-width: 1px;
+  border-style: solid;
+
+  .player-name {
+    background-color: white;
+    border-radius: 5px;
+    width: 100px;
+    margin: 5px;
+    text-align: center;
+    border: 1px solid black;
+    padding: 3px;
+  }
+
+  .player-hand {
+    display: flex;
+
+    .foo-card {
+      margin: 2px 5px;
+    }
+  }
+}

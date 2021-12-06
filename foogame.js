@@ -49,6 +49,7 @@ define([
      */
     setup(gamedatas) {
       debug('SETUP', gamedatas);
+      this.setupPlayers();
       this.inherited(arguments);
     },
   });
