@@ -383,7 +383,7 @@ class Pieces extends DB_Manager
   public static function moveAllInLocation($fromLocation, $toLocation, $fromState = null, $toState = 0)
   {
     if (!is_null($fromLocation)) {
-      self::checkLocation($fromLocation);
+      self::checkLocation($fromLocation, true);
     }
     self::checkLocation($toLocation);
 
@@ -397,7 +397,7 @@ class Pieces extends DB_Manager
    */
   public static function moveAllInLocationKeepState($fromLocation, $toLocation)
   {
-    self::checkLocation($fromLocation);
+    self::checkLocation($fromLocation, true);
     self::checkLocation($toLocation);
     return self::moveAllInLocation($fromLocation, $toLocation, null, null);
   }
