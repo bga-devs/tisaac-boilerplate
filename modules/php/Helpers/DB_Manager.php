@@ -16,17 +16,17 @@ class DB_Manager extends \APP_DbObject
   {
     if (is_null($table)) {
       if (is_null(static::$table)) {
-        throw new \feException('You must specify the table you want to do the query on');
+        throw new \feException(
+            'You must specify the table you want to do the query on'
+        );
       }
       $table = static::$table;
     }
 
     $log = null;
-    /*
     if (static::$log ?? Game::get()->getGameStateValue('logging') == 1) {
       $log = new Log(static::$table, static::$primary);
     }
-    */
     return new QueryBuilder(
       $table,
       function ($row) {

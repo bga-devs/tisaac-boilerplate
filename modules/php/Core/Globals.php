@@ -10,7 +10,8 @@ class Globals extends \FOO\Helpers\DB_Manager
 {
   protected static $initialized = false;
   protected static $variables = [
-
+    'turn' => 'int',
+    'firstPlayer' => 'int'
   ];
 
   protected static $table = 'global_variables';
@@ -137,5 +138,6 @@ class Globals extends \FOO\Helpers\DB_Manager
    */
   public static function setupNewGame($players, $options)
   {
+    self::setTurn(0);
   }
 }

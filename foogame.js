@@ -36,7 +36,7 @@ define([
       ];
 
       // Fix mobile viewport (remove CSS zoom)
-      this.default_viewport = 'width=700';
+      this.default_viewport = 'width=800';
     },
 
     /**

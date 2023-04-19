@@ -36,6 +36,7 @@ use FOO\Core\Globals;
 use FOO\Core\Preferences;
 use FOO\Managers\Cards;
 use FOO\Managers\Players;
+use FOO\Core\Stats;
 
 class foogame extends Table
 {
@@ -50,6 +51,8 @@ class foogame extends Table
     self::initGameStateLabels([
       'logging' => 10,
     ]);
+    Stats::checkExistence();
+    $this->bIndependantMultiactiveTable=true;
   }
 
   public static function get()
@@ -59,6 +62,7 @@ class foogame extends Table
 
   protected function getGameName()
   {
+    // Used for translations and stuff. Please do not modify.
     return 'foogame';
   }
 
@@ -67,11 +71,13 @@ class foogame extends Table
    */
   protected function setupNewGame($players, $options = [])
   {
-    Globals::setupNewGame($players, $options);
-    Preferences::setupNewGame($players, $options);
     Players::setupNewGame($players, $options);
+    Globals::setupNewGame($players, $options);
+    Preferences::setupNewGame($players, $this->player_preferences);
+    //    Stats::checkExistence();
     Cards::setupNewGame($players, $options);
 
+    //$this->setGameStateInitialValue('logging', false);
     $this->activeNextPlayer();
   }
 

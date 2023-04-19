@@ -1,7 +1,13 @@
 var isDebug = window.location.host == 'studio.boardgamearena.com' || window.location.hash.indexOf('debug') > -1;
 var debug = isDebug ? console.info.bind(window.console) : function () {};
 
-define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui'], (dojo, declare) => {
+define(['dojo', 'dojo/_base/declare', g_gamethemeurl + 'modules/js/vendor/nouislider.min.js', 'ebg/core/gamegui'], (
+  dojo,
+  declare,
+  noUiSlider,
+) => {
+  const isPromise = (v) => typeof v === 'object' && typeof v.then === 'function';
+
   return declare('customgame.game', ebg.core.gamegui, {
     /*
      * Constructor
@@ -14,6 +20,8 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui'], (dojo, declare) => {
       this._activeStatus = null;
       this._helpMode = false;
       this._dragndropMode = false;
+      this._customTooltipIdCounter = 0;
+      this._registeredCustomTooltips = {};
 
       this._notif_uid_to_log_id = {};
       this._last_notif = null;
@@ -74,12 +82,12 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui'], (dojo, declare) => {
     setup(gamedatas) {
       // Create a new div for buttons to avoid BGA auto clearing it
       dojo.place("<div id='customActions' style='display:inline-block'></div>", $('generalactions'), 'after');
+      dojo.place("<div id='restartAction' style='display:inline-block'></div>", $('customActions'), 'after');
+
+      this.attachRegisteredTooltips();
 
       this.setupNotifications();
-      this.initPreferencesObserver();
-      if (!this.isReadOnly()) {
-        this.checkPreferencesConsistency(gamedatas.prefs);
-      }
+      this.initPreferences();
       dojo.connect(this.notifqueue, 'addToLog', () => {
         this.checkLogCancel(this._last_notif == null ? null : this._last_notif.msg.uid);
         this.addLogClass();
@@ -153,9 +161,11 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui'], (dojo, declare) => {
       var methodName = 'onLeavingState' + stateName.charAt(0).toUpperCase() + stateName.slice(1);
       if (this[methodName] !== undefined) this[methodName]();
     },
+
     clearPossible() {
       this.removeActionButtons();
       dojo.empty('customActions');
+      dojo.empty('restartAction');
 
       this._connections.forEach(dojo.disconnect);
       this._connections = [];
@@ -190,6 +200,11 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui'], (dojo, declare) => {
         var functionName = 'notif_' + notif[0];
 
         let wrapper = (args) => {
+          let msg = this.format_string_recursive(args.log, args.args);
+          if (msg != '') {
+            $('gameaction_status').innerHTML = msg;
+            $('pagemaintitletext').innerHTML = msg;
+          }
           let timing = this[functionName](args);
           if (timing === undefined) {
             if (notif[1] === undefined) {
@@ -203,7 +218,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui'], (dojo, declare) => {
             timing = this.isFastMode() ? 0 : notif[1];
           }
 
-          if (timing !== null) {
+          if (timing !== null && !isPromise(timing)) {
             this.notifqueue.setSynchronousDuration(timing);
           }
         };
@@ -284,7 +299,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui'], (dojo, declare) => {
         }
       };
       this._actionTimerFunction();
-      this._actionTimerId = window.setInterval(this._actionTimerFunction, 1000);
+      this._actionTimerId = window.setInterval(this._actionTimerFunction.bind(this), 1000);
       debug('Timer #' + this._actionTimerId + ' ' + buttonId + ' start');
     },
 
@@ -383,9 +398,13 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui'], (dojo, declare) => {
         var pref = match[1];
         var newValue = e.target.value;
         this.prefs[pref].value = newValue;
+        if (this.prefs[pref].attribute) {
+          $('ebd-body').setAttribute('data-' + this.prefs[pref].attribute, newValue);
+        }
         $('preference_control_' + pref).value = newValue;
+        if ($('preference_fontrol_' + pref)) {
         $('preference_fontrol_' + pref).value = newValue;
-
+        }
         data = { pref: pref, lock: false, value: newValue, player: this.player_id };
         this.takeAction('actChangePref', data, false, false);
         this.onPreferenceChange(pref, newValue);
@@ -403,6 +422,247 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui'], (dojo, declare) => {
     },
 
     onPreferenceChange(pref, newValue) {},
+
+    
+    // Init preferences will setup local preference and put the corresponding data-attribute on overall-content div if needed
+    initPreferences() {
+      // Attach data attribute on overall-content div
+      Object.keys(this.prefs).forEach((prefId) => {
+        let pref = this.prefs[prefId];
+        if (pref.attribute) {
+          $('ebd-body').setAttribute('data-' + pref.attribute, pref.value);
+        }
+      });
+
+      if (!this.isReadOnly() && this.gamedatas.localPrefs) {
+        // Create local prefs
+        Object.keys(this.gamedatas.localPrefs).forEach((prefId) => {
+          let pref = this.gamedatas.localPrefs[prefId];
+          pref.id = prefId;
+          let selectedValue = this.gamedatas.prefs.find((pref2) => pref2.pref_id == pref.id).pref_value;
+          pref.value = selectedValue;
+          this.prefs[prefId] = pref;
+          if (pref.attribute) {
+            $('ebd-body').setAttribute('data-' + pref.attribute, selectedValue);
+          }
+          this.place('tplPreferenceSelect', pref, 'local-prefs-container');
+        });
+      }
+
+      this.initPreferencesObserver();
+      if (!this.isReadOnly()) {
+        this.checkPreferencesConsistency(this.gamedatas.prefs);
+      }
+
+      this.setupSettings();
+    },
+
+    tplPreferenceSelect(pref) {
+      let values = Object.keys(pref.values)
+        .map(
+          (val) =>
+            `<option value='${val}' ${pref.value == val ? 'selected="selected"' : ''}>${_(
+              pref.values[val].name,
+            )}</option>`,
+        )
+        .join('');
+
+      return `
+        <div class="preference_choice">
+          <div class="row-data row-data-large">
+            <div class="row-label">${_(pref.name)}</div>
+            <div class="row-value">
+              <select id="preference_control_${
+                pref.id
+              }" class="preference_control game_local_preference_control" style="display: block;">
+                ${values}
+              </select>
+            </div>
+          </div>
+        </div>
+      `;
+    },
+
+    onPreferenceChange(pref, newValue) {},
+
+    /************************
+     ******* SETTINGS ********
+     ************************/
+    setupSettings() {
+      dojo.connect($('show-settings'), 'onclick', () => this.toggleSettings());
+      this.addTooltip('show-settings', '', _('Display some settings about the game.'));
+      let container = $('settings-controls-container');
+
+      if (this.getSettingsSections) {
+        this._settingsSections = this.getSettingsSections();
+        dojo.place(`<div id='settings-controls-header'></div><div id='settings-controls-wrapper'></div>`, container);
+        Object.keys(this._settingsSections).forEach((sectionName, i) => {
+          dojo.place(
+            `<div id='settings-section-${sectionName}' class='settings-section'></div>`,
+            'settings-controls-wrapper',
+          );
+          let div = dojo.place(`<div>${this._settingsSections[sectionName]}</div>`, 'settings-controls-header');
+          let openSection = () => {
+            dojo.query('#settings-controls-header div').removeClass('open');
+            div.classList.add('open');
+            dojo.query('#settings-controls-wrapper div.settings-section').removeClass('open');
+            $(`settings-section-${sectionName}`).classList.add('open');
+          };
+          div.addEventListener('click', openSection);
+          if (i == 0) {
+            openSection();
+          }
+        });
+      }
+
+      this.settings = {};
+      this._settingsConfig = this.getSettingsConfig();
+      Object.keys(this._settingsConfig).forEach((settingName) => {
+        let config = this._settingsConfig[settingName];
+        let localContainer = container;
+        if (config.section) {
+          localContainer = $(`settings-section-${config.section}`);
+        }
+
+        if (config.type == 'pref') {
+          if (config.local == true && this.isReadOnly()) {
+            return;
+          }
+          // Pref type => just move the user pref around
+          dojo.place($('preference_control_' + config.prefId).parentNode.parentNode, localContainer);
+          return;
+        }
+
+        let suffix = settingName.charAt(0).toUpperCase() + settingName.slice(1);
+        let value = this.getConfig(this.game_name + suffix, config.default);
+        this.settings[settingName] = value;
+
+        // Slider type => create DOM and initialize noUiSlider
+        if (config.type == 'slider') {
+          this.place('tplSettingSlider', { desc: config.name, id: settingName }, localContainer);
+          config.sliderConfig.start = [value];
+          noUiSlider.create($('setting-' + settingName), config.sliderConfig);
+          $('setting-' + settingName).noUiSlider.on('slide', (arg) =>
+            this.changeSetting(settingName, parseInt(arg[0])),
+          );
+        } else if (config.type == 'multislider') {
+          this.place('tplSettingSlider', { desc: config.name, id: settingName }, localContainer);
+          config.sliderConfig.start = value;
+          noUiSlider.create($('setting-' + settingName), config.sliderConfig);
+          $('setting-' + settingName).noUiSlider.on('slide', (arg) => this.changeSetting(settingName, arg));
+        }
+
+        // Select type => create a select
+        else if (config.type == 'select') {
+          config.id = settingName;
+          this.place('tplSettingSelect', config, localContainer);
+          $('setting-' + settingName).addEventListener('change', () => {
+            let newValue = $('setting-' + settingName).value;
+            this.changeSetting(settingName, newValue);
+            if (config.attribute) {
+              $('ebd-body').setAttribute('data-' + config.attribute, newValue);
+            }
+          });
+        }
+        // Switch type => create a select
+        else if (config.type == 'switch') {
+          config.id = settingName;
+          this.place('tplSettingSwitch', config, localContainer);
+          $('setting-' + settingName).addEventListener('change', () => {
+            let newValue = $('setting-' + settingName).checked ? 1 : 0;
+            this.changeSetting(settingName, newValue);
+            if (config.attribute) {
+              $('ebd-body').setAttribute('data-' + config.attribute, newValue);
+            }
+          });
+        }
+
+        if (config.attribute) {
+          $('ebd-body').setAttribute('data-' + config.attribute, value);
+        }
+        this.changeSetting(settingName, value);
+      });
+    },
+
+    changeSetting(settingName, value) {
+      let suffix = settingName.charAt(0).toUpperCase() + settingName.slice(1);
+      this.settings[settingName] = value;
+      localStorage.setItem(this.game_name + suffix, value);
+      let methodName = 'onChange' + suffix + 'Setting';
+      if (this[methodName]) {
+        this[methodName](value);
+      }
+    },
+
+    tplSettingSlider(setting) {
+      return `
+      <div class='row-data row-data-large' data-id='${setting.id}'>
+        <div class='row-label'>${setting.desc}</div>
+        <div class='row-value slider'>
+          <div id="setting-${setting.id}"></div>
+        </div>
+      </div>
+      `;
+    },
+
+    tplSettingSwitch(setting) {
+      return `
+      <div class='row-data row-data-large row-data-switch' data-id='${setting.id}'>
+        <div class='row-label'>${_(setting.name)}</div>
+        <div class='row-value'>
+          <label class="switch" for="setting-${setting.id}">
+            <input type="checkbox" id="setting-${setting.id}" ${
+        this.settings[setting.id] == 1 ? 'checked="checked"' : ''
+      } />
+            <div class="slider round"></div>
+          </label>
+        </div>
+      </div>
+      `;
+    },
+
+    tplSettingSelect(setting) {
+      let values = Object.keys(setting.values)
+        .map(
+          (val) =>
+            `<option value='${val}' ${this.settings[setting.id] == val ? 'selected="selected"' : ''}>${_(
+              setting.values[val],
+            )}</option>`,
+        )
+        .join('');
+
+      return `
+        <div class="preference_choice" data-id='${setting.id}'>
+          <div class="row-data row-data-large">
+            <div class="row-label">${_(setting.name)}</div>
+            <div class="row-value">
+              <select id="setting-${
+                setting.id
+              }" class="preference_control game_local_preference_control" style="display: block;">
+                ${values}
+              </select>
+            </div>
+          </div>
+        </div>
+      `;
+    },
+
+    toggleSettings() {
+      this._settingsModal.show();
+      /*
+      dojo.toggleClass('settings-controls-container', 'settingsControlsHidden');
+
+      // Hacking BGA framework
+      if (dojo.hasClass('ebd-body', 'mobile_version')) {
+        dojo.query('.player-board').forEach((elt) => {
+          if (elt.style.height != 'auto') {
+            dojo.style(elt, 'min-height', elt.style.height);
+            elt.style.height = 'auto';
+          }
+        });
+      }
+      */
+    },
 
     getScale(id) {
       let transform = dojo.style(id, 'transform');
@@ -435,8 +695,9 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui'], (dojo, declare) => {
           from: null,
           clearPos: true,
           beforeBrother: null,
+          to: null,
 
-          phantom: false,
+          phantom: false, // not sure of right value (true or false)
         },
         options,
       );
@@ -462,7 +723,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui'], (dojo, declare) => {
       }
 
       // Handle phantom at start
-      if (config.phantomStart) {
+      if (config.phantomStart && config.from == null) {
         mobile = dojo.clone(mobileElt);
         dojo.attr(mobile, 'id', mobileElt.id + '_animated');
         dojo.place(mobile, 'game_play_area');
@@ -475,7 +736,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui'], (dojo, declare) => {
       if (config.phantomEnd) {
         targetId = dojo.clone(mobileElt);
         dojo.attr(targetId, 'id', mobileElt.id + '_afterSlide');
-        dojo.addClass(targetId, 'phantomm');
+        dojo.addClass(targetId, 'phantom');
         if (config.beforeBrother != null) {
           dojo.place(targetId, config.beforeBrother, 'before');
         } else {
@@ -490,8 +751,15 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui'], (dojo, declare) => {
       return new Promise((resolve, reject) => {
         const animation =
           config.pos == null
-            ? this.slideToObject(mobile, targetId, config.duration, config.delay)
-            : this.slideToObjectPos(mobile, targetId, config.pos.x, config.pos.y, config.duration, config.delay);
+          ? this.slideToObject(mobile, config.to || targetId, config.duration, config.delay)
+          : this.slideToObjectPos(
+              mobile,
+              config.to || targetId,
+              config.pos.x,
+              config.pos.y,
+              config.duration,
+              config.delay,
+            );
 
         dojo.connect(animation, 'onEnd', () => {
           dojo.style(mobile, 'zIndex', null);
@@ -648,9 +916,9 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui'], (dojo, declare) => {
       return this.inherited(arguments);
     },
 
-    place(tplMethodName, object, container) {
+    place(tplMethodName, object, container, position = null) {
       if ($(container) == null) {
-        console.error('Trying to place on null container', container);
+        console.error('Trying to place on null container', container, tplMethodName, object);
         return;
       }
 
@@ -659,7 +927,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui'], (dojo, declare) => {
         return;
       }
 
-      return dojo.place(this[tplMethodName](object), container);
+      return dojo.place(this[tplMethodName](object), container, position);
     },
 
     /* Helper to work with local storage */
@@ -714,6 +982,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui'], (dojo, declare) => {
 
     onClick(node, callback, temporary = true) {
       let safeCallback = (evt) => {
+        evt.stopPropagation();
         if (this.isInterfaceLocked()) return false;
         if (this._helpMode) return false;
         callback(evt);
@@ -732,9 +1001,25 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui'], (dojo, declare) => {
     /**
      * Tooltip to work with help mode
      */
+    registerCustomTooltip(html, id = null) {
+      id = id || this.game_name + '-tooltipable-' + this._customTooltipIdCounter++;
+      this._registeredCustomTooltips[id] = html;
+      return id;
+    },
+    attachRegisteredTooltips() {
+      Object.keys(this._registeredCustomTooltips).forEach((id) => {
+        if (!$(id)) {
+          console.error('Trying to attack tooltip on a null element', id);
+        } else {
+          this.addCustomTooltip(id, this._registeredCustomTooltips[id]);
+        }
+      });
+      this._registeredCustomTooltips = {};
+    },
     addCustomTooltip(id, html, delay) {
       if (this.tooltips[id]) {
-        this.tooltips[id].destroy();
+        this.tooltips[id].label = html;
+        return;
       }
 
       html = '<div class="midSizeDialog">' + html + '</div>';
@@ -838,7 +1123,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui'], (dojo, declare) => {
     /**
      * Own counter implementation that works with replay
      */
-    createCounter(id, defaultValue = 0) {
+    createCounter(id, defaultValue = 0, linked = null) {
       if (!$(id)) {
         console.error('Counter : element does not exist', id);
         return null;
@@ -847,18 +1132,20 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui'], (dojo, declare) => {
       let game = this;
       let o = {
         span: $(id),
+        linked: linked ? $(linked) : null,
         targetValue: 0,
         currentValue: 0,
         speed: 100,
-        getValue: function () {
+        getValue() {
           return this.targetValue;
         },
-        setValue: function (n) {
+        setValue(n) {
           this.currentValue = +n;
           this.targetValue = +n;
           this.span.innerHTML = +n;
+          if (this.linked) this.linked.innerHTML = +n;
         },
-        toValue: function (n) {
+        toValue(n) {
           if (game.isFastMode()) {
             this.setValue(n);
             return;
@@ -870,11 +1157,15 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui'], (dojo, declare) => {
             setTimeout(() => this.makeCounterProgress(), this.speed);
           }
         },
-        incValue: function (n) {
+        goTo(n, anim) {
+          if (anim) this.toValue(n);
+          else this.setValue(n);
+        },
+        incValue(n) {
           let m = +n;
           this.toValue(this.targetValue + m);
         },
-        makeCounterProgress: function () {
+        makeCounterProgress() {
           if (this.currentValue == this.targetValue) {
             setTimeout(() => this.span.classList.remove('counter_in_progress'), this.speed);
             return;
@@ -883,11 +1174,105 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui'], (dojo, declare) => {
           let step = Math.ceil(Math.abs(this.targetValue - this.currentValue) / 5);
           this.currentValue += (this.currentValue < this.targetValue ? 1 : -1) * step;
           this.span.innerHTML = this.currentValue;
+          if (this.linked) this.linked.innerHTML = this.currentValue;
           setTimeout(() => this.makeCounterProgress(), this.speed);
         },
       };
       o.setValue(defaultValue);
       return o;
+    },
+    
+    /****************
+     ***** UTILS *****
+     ****************/
+     forEachPlayer(callback) {
+      Object.values(this.gamedatas.players).forEach(callback);
+    },
+
+    getArgs() {
+      return this.gamedatas.gamestate.args;
+    },
+
+    clientState(name, descriptionmyturn, args) {
+      this.setClientState(name, {
+        descriptionmyturn,
+        args,
+      });
+    },
+
+    strReplace(str, subst) {
+      return dojo.string.substitute(str, subst);
+    },
+
+    addCancelStateBtn(text = null) {
+      if (text == null) {
+        text = _('Cancel');
+      }
+
+      this.addSecondaryActionButton('btnCancel', text, () => this.clearClientState());
+    },
+
+    clearClientState() {
+      //this.clearPossible();
+      this.restoreServerGameState();
+    },
+
+    translate(t) {
+      if (typeof t === 'object') {
+        return this.format_string_recursive(t.log, t.args);
+      } else {
+        return _(t);
+      }
+    },
+
+    fsr(log, args) {
+      return this.format_string_recursive(log, args);
+    },
+
+    onSelectN(elements, n, callback) {
+      let selectedElements = [];
+      let updateStatus = () => {
+        if ($('btnConfirmChoice')) $('btnConfirmChoice').remove();
+        if (selectedElements.length == n) {
+          this.addPrimaryActionButton('btnConfirmChoice', _('Confirm'), () => {
+            if (callback(selectedElements)) {
+              selectedElements = [];
+              updateStatus();
+            }
+          });
+        }
+
+        if ($('btnCancelChoice')) $('btnCancelChoice').remove();
+        if (selectedElements > 0) {
+          this.addSecondaryActionButton('btnCancelChoice', _('Cancel'), () => {
+            selectedElements = [];
+            updateStatus();
+          });
+        }
+
+        Object.keys(elements).forEach((id) => {
+          let elt = elements[id];
+          let selected = selectedElements.includes(id);
+          elt.classList.toggle('selected', selected);
+          elt.classList.toggle('selectable', selected || selectedElements.length < n);
+        });
+      };
+
+      Object.keys(elements).forEach((id) => {
+        let elt = elements[id];
+
+        this.onClick(elt, () => {
+          let index = selectedElements.findIndex((t) => t == id);
+
+          if (index === -1) {
+            if (selectedElements.length >= n) return;
+            selectedElements.push(id);
+          } else {
+            selectedElements.splice(index, 1);
+          }
+          updateStatus();
+        });
+      });
     },
   });
 });
