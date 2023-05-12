@@ -13,6 +13,16 @@
  * foogame stylesheet
  *
  */
+ 
+/*  @font-face {
+  font-family: "Bernard MT Condensed";
+  src: url("img/fonts/BernardMT-Condensed.woff2") format("woff2"), url("img/fonts/BernardMT-Condensed.woff") format("woff"), url("img/fonts/BernardMT-Condensed.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap; } */
+.player-info {
+  display: flex; }
+
 .player-container {
   height: 250px;
   margin: 10px 5px;

@@ -11,8 +11,10 @@ abstract class Utils extends \APP_DbObject
   public static function die($args = null)
   {
     if (is_null($args)) {
-      throw new \BgaVisibleSystemException(implode('<br>', self::$logmsg));
-    }
+      throw new \BgaVisibleSystemException(
+        implode('<br>', self::$logmsg)
+    );
+  }
     throw new \BgaVisibleSystemException(json_encode($args));
   }
 
@@ -33,4 +35,17 @@ abstract class Utils extends \APP_DbObject
     $array = $new;
     return true;
   }
+  function array_unique($array, $comparator)
+  {
+      $unique_array = [];
+      do {
+          $element = array_shift($array);
+          $unique_array[] = $element;
+
+          $array = array_udiff($array, [$element], $comparator);
+      } while (count($array) > 0);
+
+      return $unique_array;
+  }
+
 }

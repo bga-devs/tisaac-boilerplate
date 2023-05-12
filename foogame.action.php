@@ -27,6 +27,16 @@ class action_foogame extends APP_GameAction
       self::trace('Complete reinitialization of board game');
     }
   }
+  
+  public function actSkip()
+  {
+    self::setAjaxMode();
+    $this->game->actSkip();
+    self::ajaxResponse();
+  }
+  ///////////////////
+  /////  PREFS  /////
+  ///////////////////
 
   public function actChangePref()
   {
@@ -36,4 +46,28 @@ class action_foogame extends APP_GameAction
     $this->game->actChangePreference($pref, $value);
     self::ajaxResponse();
   }
+
+
+  //////////////////
+  ///// UTILS  /////
+  //////////////////
+  public function validateJSonAlphaNum($value, $argName = 'unknown')
+  {
+    if (is_array($value)) {
+      foreach ($value as $key => $v) {
+        $this->validateJSonAlphaNum($key, $argName);
+        $this->validateJSonAlphaNum($v, $argName);
+      }
+      return true;
+    }
+    if (is_int($value)) {
+      return true;
+    }
+    $bValid = preg_match('/^[_0-9a-zA-Z- ]*$/', $value) === 1;
+    if (!$bValid) {
+      throw new feException("Bad value for: $argName", true, true, FEX_bad_input_argument);
+    }
+    return true;
+  }
+
 }
