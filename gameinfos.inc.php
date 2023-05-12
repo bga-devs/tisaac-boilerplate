@@ -15,19 +15,19 @@ $gameinfos = [
   'game_name' => 'Tisaac boilerplate',
 
   // Game designer (or game designers, separated by commas)
-  'designer' => 'John Doe',
+  'designer' => 'Tisaac',
 
   // Game artist (or game artists, separated by commas)
-  'artist' => 'Jane Doe',
+  'artist' => 'Tisaac',
 
   // Year of FIRST publication of this game. Can be negative.
-  'year' => 2000,
+  'year' => 2023,
 
   // Game publisher (use empty string if there is no publisher)
-  'publisher' => 'My Publishing Company',
+  'publisher' => 'Tisaac',
 
   // Url of game publisher website
-  'publisher_website' => 'http://www.mypublishingcompany.com/',
+  'publisher_website' => 'https://boardgamearena.com/player?id=83846198',
 
   // Board Game Geek ID of the publisher
   'publisher_bgg_id' => 1234,
@@ -128,9 +128,9 @@ $gameinfos = [
   // Each paragraph must be wrapped with totranslate() for translation and should not contain html (plain text without formatting).
   // A good length for this text is between 100 and 150 words (about 6 to 9 lines on a standard display)
   'presentation' => [
-    //    totranslate("This wonderful game is about geometric shapes!"),
-    //    totranslate("It was awarded best triangle game of the year in 2005 and nominated for the Spiel des Jahres."),
-    //    ...
+    'This is my boilerplate for coding games on BGA.',
+    'All the code is available here : https://github.com/bga-devs/tisaac-boilerplate',
+    'Read some informations here : bga-devs.github.io/',
   ],
 
   // Games categories
