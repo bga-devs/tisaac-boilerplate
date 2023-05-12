@@ -12,7 +12,7 @@ abstract class DB_Model extends \APP_DbObject implements \JsonSerializable
    */
   protected $attributes = [];
 
-    /**
+  /**
    * This array will contains class attributes that does not depends on the DB (static info), they can only be accessed, not modified
    */
   protected $staticAttributes = [];
@@ -63,16 +63,16 @@ abstract class DB_Model extends \APP_DbObject implements \JsonSerializable
       // Sanity check : does the name correspond to a declared variable ?
       $name = mb_strtolower($match[2]) . $match[3];
       if (!\array_key_exists($name, $this->attributes)) {
-                // Static attribute getters
-                if (in_array($match[1], ['get', 'is'])) {
-                  foreach ($this->staticAttributes as $attr) {
-                    if (is_array($attr) && $name == $attr[0]) {
-                      return $this->$name ?? ($attr[1] == 'int' ? 0 : []);
-                    } elseif ($attr == $name) {
-                      return $this->$name ?? '';
-                    }
-                  }
-                }
+        // Static attribute getters
+        if (in_array($match[1], ['get', 'is'])) {
+          foreach ($this->staticAttributes as $attr) {
+            if (is_array($attr) && $name == $attr[0]) {
+              return $this->$name ?? ($attr[1] == 'int' ? 0 : []);
+            } elseif ($attr == $name) {
+              return $this->$name ?? '';
+            }
+          }
+        }
         throw new \InvalidArgumentException("Attribute {$name} doesn't exist");
       }
 
@@ -81,8 +81,8 @@ abstract class DB_Model extends \APP_DbObject implements \JsonSerializable
           // Handle json field
           return $this->$name[$args[0]] ?? null;
         } else {
-        // Basic getters
-        return $this->$name;
+          // Basic getters
+          return $this->$name;
         }
       } elseif ($match[1] == 'is') {
         // Boolean getter
@@ -90,7 +90,7 @@ abstract class DB_Model extends \APP_DbObject implements \JsonSerializable
       } elseif ($match[1] == 'set') {
         // Setters in DB and update cache
         $value = $args[0];
-        
+
         // Auto-cast
         $field = $this->attributes[$name];
         $fieldName = is_array($field) ? $field[0] : $field;
@@ -98,13 +98,13 @@ abstract class DB_Model extends \APP_DbObject implements \JsonSerializable
         if (is_array($field)) {
           if ($field[1] == 'int') {
             $value = (int) $value;
-            if ($value === $this->$name) {
+            if ($value == $this->$name) {
               return; // No modification, abort DB call
             }
           }
           if ($field[1] == 'bool') {
             $value = (bool) $value;
-            if ($value === $this->$name) {
+            if ($value == $this->$name) {
               return; // No modification, abort DB call
             }
           }
@@ -118,7 +118,7 @@ abstract class DB_Model extends \APP_DbObject implements \JsonSerializable
         if ($isObj && $objKey !== null) {
           $this->$name[$objKey] = $value;
         } else {
-        $this->$name = $value;
+          $this->$name = $value;
         }
 
         $updateValue = $this->$name;
@@ -156,26 +156,9 @@ abstract class DB_Model extends \APP_DbObject implements \JsonSerializable
     return $data;
   }
 
-  /**
-   * Save query
-   */
-  public function save()
+  public function getStaticData()
   {
-    $id = null;
     $data = [];
-    foreach ($this->attributes as $attribute => $field) {
-      if ($field == $this->primary) {
-        $id = $this->$attribute;
-      } else {
-        $data[$field] = $this->$attribute;
-      }
-    }
-
-    $this->DB()->update($data, $id);
-  }
-  public function getUiData()
-  {
-    $data = $this->jsonSerialize();
     foreach ($this->staticAttributes as $attribute) {
       if (is_array($attribute)) {
         $attribute = $attribute[0];
@@ -185,6 +168,11 @@ abstract class DB_Model extends \APP_DbObject implements \JsonSerializable
     }
 
     return $data;
+  }
+
+  public function getUiData()
+  {
+    return array_merge($this->jsonSerialize(), $this->getStaticData());
   }
 
   /**
@@ -197,11 +185,11 @@ abstract class DB_Model extends \APP_DbObject implements \JsonSerializable
     }
 
     $log = null;
-    
+
     if (static::$log ?? Game::get()->getGameStateValue('logging') == 1) {
-      $log = new Log(static::$table, static::$primary);
+      $log = new Log($this->table, $this->primary);
     }
-    
+
     return new QueryBuilder(
       $this->table,
       function ($row) {

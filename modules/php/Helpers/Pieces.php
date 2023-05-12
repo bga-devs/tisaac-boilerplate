@@ -84,11 +84,8 @@ class Pieces extends DB_Manager
     return $query;
   }
 
-  final static function getUpdateQuery(
-      $ids = [],
-      $location = null,
-      $state = null
-  ) {
+  final static function getUpdateQuery($ids = [], $location = null, $state = null)
+  {
     $data = [];
     if (!is_null($location)) {
       $data[static::$prefix . 'location'] = $location;
@@ -99,10 +96,7 @@ class Pieces extends DB_Manager
 
     $query = self::DB()->update($data);
     if (!is_null($ids)) {
-      $query = $query->whereIn(
-          static::$prefix . 'id',
-          is_array($ids) ? $ids : [$ids]
-      );
+      $query = $query->whereIn(static::$prefix . 'id', is_array($ids) ? $ids : [$ids]);
     }
 
     static::addBaseFilter($query);
@@ -112,12 +106,8 @@ class Pieces extends DB_Manager
   /****
    * Return a select query with a where condition
    */
-  protected function addWhereClause(
-      &$query,
-      $id = null,
-      $location = null,
-      $state = null
-  ) {
+  protected function addWhereClause(&$query, $id = null, $location = null, $state = null)
+  {
     if (!is_null($id)) {
       $whereOp = strpos($id, '%') !== false ? 'LIKE' : '=';
       $query = $query->where(static::$prefix . 'id', $whereOp, $id);
@@ -125,11 +115,7 @@ class Pieces extends DB_Manager
 
     if (!is_null($location)) {
       $whereOp = strpos($location, '%') !== false ? 'LIKE' : '=';
-      $query = $query->where(
-          static::$prefix . 'location',
-          $whereOp,
-          $location
-      );
+      $query = $query->where(static::$prefix . 'location', $whereOp, $location);
     }
 
     if (!is_null($state)) {
@@ -142,11 +128,8 @@ class Pieces extends DB_Manager
   /****
    * Append the basic select query with a where clause
    */
-  public static function getSelectWhere(
-      $id = null,
-      $location = null,
-      $state = null
-  ) {
+  public static function getSelectWhere($id = null, $location = null, $state = null)
+  {
     $query = self::getSelectQuery();
     self::addWhereClause($query, $id, $location, $state);
     return $query;
@@ -165,9 +148,7 @@ class Pieces extends DB_Manager
   final static function checkLocation(&$location, $like = false)
   {
     if (is_null($location)) {
-      throw new \BgaVisibleSystemException(
-          'Class Pieces: location cannot be null'
-      );
+      throw new \BgaVisibleSystemException('Class Pieces: location cannot be null');
     }
 
     if (is_array($location)) {
@@ -175,15 +156,10 @@ class Pieces extends DB_Manager
     }
 
     $extra = $like ? '%' : '';
-    if (
-        preg_match(
-            "/^[A-Za-z0-9{$extra}-][A-Za-z_0-9{$extra}-]*$/",
-            $location
-        ) == 0
-    ) {
-        throw new \BgaVisibleSystemException(
-          "Class Pieces: location must be alphanum and underscore non empty string '$location'"
-        );
+    if (preg_match("/^[A-Za-z0-9${extra}-][A-Za-z_0-9${extra}-]*$/", $location) == 0) {
+      throw new \BgaVisibleSystemException(
+        "Class Pieces: location must be alphanum and underscore non empty string '$location'"
+      );
     }
   }
 
@@ -197,7 +173,7 @@ class Pieces extends DB_Manager
     }
 
     $extra = $like ? '%' : '';
-    if (preg_match("/^[A-Za-z_0-9{$extra}]+$/", $id) == 0) {
+    if (preg_match("/^[A-Za-z_0-9${extra}]+$/", $id) == 0) {
       throw new \BgaVisibleSystemException("Class Pieces: id must be alphanum and underscore non empty string '$id'");
     }
   }
@@ -225,7 +201,7 @@ class Pieces extends DB_Manager
       throw new \BgaVisibleSystemException('Class Pieces: state cannot be null');
     }
 
-    if (!is_null($state) && preg_match("/^-*[0-9]+$/", $state) == 0) {
+    if (!is_null($state) && preg_match('/^-*[0-9]+$/', $state) == 0) {
       throw new \BgaVisibleSystemException('Class Pieces: state must be integer number');
     }
   }
@@ -235,7 +211,7 @@ class Pieces extends DB_Manager
    */
   final static function checkPosInt($n)
   {
-    if ($n && preg_match("/^[0-9]+$/", $n) == 0) {
+    if ($n && preg_match('/^[0-9]+$/', $n) == 0) {
       throw new \BgaVisibleSystemException('Class Pieces: number of pieces must be integer number');
     }
   }
@@ -278,12 +254,9 @@ class Pieces extends DB_Manager
       ->whereIn(static::$prefix . 'id', $ids)
       ->get(false);
     if (count($result) != count($ids) && $raiseExceptionIfNotEnough) {
-        // throw new \feException(print_r(\debug_print_backtrace()));
-        throw new \feException(
-            'Class Pieces: getMany, some pieces have not been found !' .
-                json_encode($ids)
-        );
-      }
+      // throw new \feException(print_r(\debug_print_backtrace()));
+      throw new \feException('Class Pieces: getMany, some pieces have not been found !' . json_encode($ids));
+    }
 
     return $result;
   }
@@ -300,21 +273,13 @@ class Pieces extends DB_Manager
   public static function getState($id)
   {
     $res = self::get($id);
-    return is_null($res)
-      ? null
-      : $res[
-          (static::$autoremovePrefix ? '' : static::$prefix) . 'state'
-      ];
+    return is_null($res) ? null : $res[(static::$autoremovePrefix ? '' : static::$prefix) . 'state'];
   }
 
   public static function getLocation($id)
   {
     $res = self::get($id);
-    return is_null($res)
-      ? null
-      : $res[
-          (static::$autoremovePrefix ? '' : static::$prefix) . 'location'
-      ];
+    return is_null($res) ? null : $res[(static::$autoremovePrefix ? '' : static::$prefix) . 'location'];
   }
 
   /**
@@ -325,20 +290,14 @@ class Pieces extends DB_Manager
     $whereOp = self::checkLocation($location, true);
     $query = self::DB();
     self::addWhereClause($query, $id, $location);
-    return $query->func(
-        $getMax ? 'MAX' : 'MIN',
-        static::$prefix . 'state'
-    ) ?? 0;
-}
+    return $query->func($getMax ? 'MAX' : 'MIN', static::$prefix . 'state') ?? 0;
+  }
 
   /**
    * Return "$nbr" piece on top of this location, top defined as item with higher state value
    */
-  public static function getTopOf(
-      $location,
-      $n = 1,
-      $returnValueIfOnlyOneRow = true
-  ) {
+  public static function getTopOf($location, $n = 1, $returnValueIfOnlyOneRow = true)
+  {
     self::checkLocation($location);
     self::checkPosInt($n);
     return self::getSelectWhere(null, $location)
@@ -351,11 +310,8 @@ class Pieces extends DB_Manager
    * Return all pieces in specific location
    * note: if "order by" is used, result object is NOT indexed by ids
    */
-  public static function getInLocationQ(
-      $location,
-      $state = null,
-      $orderBy = null
-  ) {
+  public static function getInLocationQ($location, $state = null, $orderBy = null)
+  {
     self::checkLocation($location, true);
     self::checkState($state, true);
 
@@ -367,20 +323,14 @@ class Pieces extends DB_Manager
     return $query;
   }
 
-  public static function getInLocation(
-      $location,
-      $state = null,
-      $orderBy = null
-  ) {
+  public static function getInLocation($location, $state = null, $orderBy = null)
+  {
     return self::getInLocationQ($location, $state, $orderBy)->get();
   }
 
   public static function getInLocationOrdered($location, $state = null)
   {
-    return self::getInLocation($location, $state, [
-        static::$prefix . 'state',
-        'ASC',
-    ]);
+    return self::getInLocation($location, $state, [static::$prefix . 'state', 'ASC']);
   }
 
   /**
@@ -393,33 +343,29 @@ class Pieces extends DB_Manager
     return self::getSelectWhere(null, $location, $state)->count();
   }
 
-    /**
-     * getFilteredQuery : many times the DB scheme has a pId and a type extra field, this allow for a shortcut for a query for these case
-     */
-    public function getFilteredQuery($pId, $location = null, $type = null)
-    {
-        $query = self::getSelectQuery()->wherePlayer($pId);
-        if ($location != null) {
-            $query = $query->where(static::$prefix . 'location', $location);
-        }
-        if ($type != null) {
-            if (is_array($type)) {
-                $query = $query->whereIn('type', $type);
-            } else {
-                $query = $query->where(
-                    'type',
-                    strpos($type, '%') === false ? '=' : 'LIKE',
-                    $type
-                );
-            }
-        }
-        return $query;
+  /**
+   * getFilteredQuery : many times the DB scheme has a pId and a type extra field, this allow for a shortcut for a query for these case
+   */
+  public function getFilteredQuery($pId, $location = null, $type = null)
+  {
+    $query = self::getSelectQuery()->wherePlayer($pId);
+    if ($location != null) {
+      $query = $query->where(static::$prefix . 'location', strpos($location, '%') === false ? '=' : 'LIKE', $location);
     }
+    if ($type != null) {
+      if (is_array($type)) {
+        $query = $query->whereIn('type', $type);
+      } else {
+        $query = $query->where('type', strpos($type, '%') === false ? '=' : 'LIKE', $type);
+      }
+    }
+    return $query;
+  }
 
-    public function getFiltered($pId, $location = null, $type = null)
-    {
-        return static::getFilteredQuery($pId, $location, $type)->get();
-    }
+  public function getFiltered($pId, $location = null, $type = null)
+  {
+    return static::getFilteredQuery($pId, $location, $type)->get();
+  }
 
   /************************************
    *************************************
@@ -442,7 +388,7 @@ class Pieces extends DB_Manager
       $ids = [$ids];
     }
     if (empty($ids)) {
-        return [];
+      return [];
     }
 
     self::checkLocation($location);
@@ -456,12 +402,8 @@ class Pieces extends DB_Manager
    *  !!! state is reset to 0 or specified value !!!
    *  if "fromLocation" and "fromState" are null: move ALL cards to specific location
    */
-  public static function moveAllInLocation(
-      $fromLocation,
-      $toLocation,
-      $fromState = null,
-      $toState = 0
-  ) {
+  public static function moveAllInLocation($fromLocation, $toLocation, $fromState = null, $toState = 0)
+  {
     if (!is_null($fromLocation)) {
       self::checkLocation($fromLocation);
     }
@@ -475,10 +417,8 @@ class Pieces extends DB_Manager
   /**
    * Move all pieces from a location to another location arg stays with the same value
    */
-  public static function moveAllInLocationKeepState(
-      $fromLocation,
-      $toLocation
-  ) {
+  public static function moveAllInLocationKeepState($fromLocation, $toLocation)
+  {
     self::checkLocation($fromLocation);
     self::checkLocation($toLocation);
     return self::moveAllInLocation($fromLocation, $toLocation, null, null);
@@ -488,13 +428,8 @@ class Pieces extends DB_Manager
    * Pick the first "$nbr" pieces on top of specified deck and place it in target location
    * Return pieces infos or void array if no card in the specified location
    */
-  public static function pickForLocation(
-      $nbr,
-      $fromLocation,
-      $toLocation,
-      $state = 0,
-      $deckReform = true
-  ) {
+  public static function pickForLocation($nbr, $fromLocation, $toLocation, $state = 0, $deckReform = true)
+  {
     self::checkLocation($fromLocation);
     self::checkLocation($toLocation);
     $pieces = self::getTopOf($fromLocation, $nbr, false);
@@ -511,33 +446,15 @@ class Pieces extends DB_Manager
     ) {
       $missing = $nbr - count($pieces);
       self::reformDeckFromDiscard($fromLocation);
-      $pieces = $pieces->merge(
-          self::pickForLocation(
-              $missing,
-              $fromLocation,
-              $toLocation,
-              $state,
-              false
-          )
-      ); // Note: block another deck reform
-  }
+      $pieces = $pieces->merge(self::pickForLocation($missing, $fromLocation, $toLocation, $state, false)); // Note: block another deck reform
+    }
 
     return $pieces;
   }
 
-  public static function pickOneForLocation(
-      $fromLocation,
-      $toLocation,
-      $state = 0,
-      $deckReform = true
-  ) {
-    return self::pickForLocation(
-        1,
-        $fromLocation,
-        $toLocation,
-        $state,
-        $deckReform
-    )->first();
+  public static function pickOneForLocation($fromLocation, $toLocation, $state = 0, $deckReform = true)
+  {
+    return self::pickForLocation(1, $fromLocation, $toLocation, $state, $deckReform)->first();
   }
 
   /*
@@ -621,15 +538,9 @@ class Pieces extends DB_Manager
    *     "state" => <state>             // Optional argument specifies integer state, if not specified and $token_state_global is not specified auto-increment is used
    */
 
-   function create(
-      $pieces,
-      $globalLocation = null,
-      $globalState = null,
-      $globalId = null
-  ) {
-    $pos = is_null($globalLocation)
-        ? 0
-        : self::getExtremePosition(true, $globalLocation) + 1;
+  function create($pieces, $globalLocation = null, $globalState = null, $globalId = null)
+  {
+    $pos = is_null($globalLocation) ? 0 : self::getExtremePosition(true, $globalLocation) + 1;
 
     $values = [];
     $ids = [];
@@ -645,10 +556,8 @@ class Pieces extends DB_Manager
 
       // SANITY
       if (is_null($id) && !static::$autoIncrement) {
-        throw new \BgaVisibleSystemException(
-            'Class Pieces: create: id cannot be null if not autoincrement'
-        );
-    }
+        throw new \BgaVisibleSystemException('Class Pieces: create: id cannot be null if not autoincrement');
+      }
 
       if (is_null($location)) {
         throw new \BgaVisibleSystemException(
@@ -662,12 +571,8 @@ class Pieces extends DB_Manager
         if (static::$autoIncrement) {
           $data = [$location, $state];
         } else {
-          $nId = preg_replace(
-            '/\{INDEX\}/',
-            $id == $globalId ? count($ids) : $i,
-            $id
-        );
-        self::checkId($nId);
+          $nId = preg_replace('/\{INDEX\}/', $id == $globalId ? count($ids) : $i, $id);
+          self::checkId($nId);
           $data = [$nId, $location, $state];
           $ids[] = $nId;
         }
@@ -681,9 +586,7 @@ class Pieces extends DB_Manager
     }
 
     $p = static::$prefix;
-    $fields = static::$autoIncrement
-    ? [$p . 'location', $p . 'state']
-    : [$p . 'id', $p . 'location', $p . 'state'];
+    $fields = static::$autoIncrement ? [$p . 'location', $p . 'state'] : [$p . 'id', $p . 'location', $p . 'state'];
     foreach (static::$customFields as $field) {
       $fields[] = $field;
     }
@@ -700,6 +603,6 @@ class Pieces extends DB_Manager
   function singleCreate($token)
   {
     $tokens = self::create([$token]);
-    return self::get(is_array($tokens) ? $tokens[0] : $tokens);
+    return self::getSingle(is_array($tokens) ? $tokens[0] : $tokens);
   }
 }

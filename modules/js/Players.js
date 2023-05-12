@@ -15,6 +15,9 @@ define(['dojo', 'dojo/_base/declare'], (dojo, declare) => {
 
         player.cards.forEach((card) => {
           this.place('tplCard', card, 'player-hand-' + player.id);
+          this.addCustomTooltip(`card-${card.id}`, () => {
+            return _('This is a dynamic content that also support safe/help mode');
+          });
         });
       });
     },
@@ -30,7 +33,9 @@ define(['dojo', 'dojo/_base/declare'], (dojo, declare) => {
 
     tplCard(card) {
       return `
-        <div class='foo-card' data-color='${card.color}' data-value='${card.value}'></div>
+        <div id='card-${card.id}' class='foo-card'>
+          <div class='foo-card-fixed-size' data-color='${card.color}' data-value='${card.value}'></div>
+        </div>
       `;
     },
   });

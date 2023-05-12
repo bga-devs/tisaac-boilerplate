@@ -58,12 +58,12 @@ class Collection extends \ArrayObject
 
   public function limit($n)
   {
-      return new Collection(array_slice($this->toAssoc(), 0, $n, true));
+    return new Collection(array_slice($this->toAssoc(), 0, $n, true));
   }
 
   public function includes($t)
   {
-      return in_array($t, $this->getArrayCopy());
+    return in_array($t, $this->getArrayCopy());
   }
 
   public function ui()
@@ -75,8 +75,15 @@ class Collection extends \ArrayObject
 
   public function uiAssoc()
   {
-      return $this->map(function ($elem) {
-          return $elem->getUiData();
-      })->toAssoc();
+    return $this->map(function ($elem) {
+      return $elem->getUiData();
+    })->toAssoc();
+  }
+
+  public function order($callback)
+  {
+    $t = $this->getArrayCopy();
+    \uasort($t, $callback);
+    return new Collection($t);
   }
 }

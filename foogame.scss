@@ -13,5 +13,41 @@
  *
  */
 
-@import 'modules/css/players';
-@import 'modules/css/cards';
+@import "modules/css/players";
+@import "modules/css/cards";
+@import "modules/css/settings";
+@import "modules/css/nouislider";
+
+#main-container {
+    display: flex;
+    flex-wrap: wrap;
+}
+
+#ebd-body.help-mode {
+    .tooltipable {
+        cursor: help;
+    }
+}
+
+.help-marker {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 20px;
+    height: 20px;
+    z-index: 900;
+    border: 1px solid black;
+    border-radius: 50%;
+
+    svg {
+        width: 20px;
+        height: 20px;
+    }
+}
+
+#ebd-body:not(.help-mode) {
+    .help-marker {
+        opacity: 0;
+        pointer-events: none;
+    }
+}

@@ -6,8 +6,6 @@ define(['dojo', 'dojo/_base/declare', g_gamethemeurl + 'modules/js/vendor/nouisl
   declare,
   noUiSlider,
 ) => {
-  const isPromise = (v) => typeof v === 'object' && typeof v.then === 'function';
-
   return declare('customgame.game', ebg.core.gamegui, {
     /*
      * Constructor
@@ -24,6 +22,7 @@ define(['dojo', 'dojo/_base/declare', g_gamethemeurl + 'modules/js/vendor/nouisl
       this._registeredCustomTooltips = {};
 
       this._notif_uid_to_log_id = {};
+      this._notif_uid_to_mobile_log_id = {};
       this._last_notif = null;
       dojo.place('loader_mask', 'overall-content', 'before');
       dojo.style('loader_mask', {
@@ -57,6 +56,7 @@ define(['dojo', 'dojo/_base/declare', g_gamethemeurl + 'modules/js/vendor/nouisl
         this.instantaneousMode = false;
         dojo.style('leftright_page_wrapper', 'display', 'block');
         dojo.style('loader_mask', 'display', 'none');
+        this.updateLayout();
       }
     },
 
@@ -73,7 +73,6 @@ define(['dojo', 'dojo/_base/declare', g_gamethemeurl + 'modules/js/vendor/nouisl
 
     onLoadingComplete() {
       debug('Loading complete');
-//      this.cancelLogs(this.gamedatas.canceledNotifIds);
     },
 
     /*
@@ -91,6 +90,7 @@ define(['dojo', 'dojo/_base/declare', g_gamethemeurl + 'modules/js/vendor/nouisl
       dojo.connect(this.notifqueue, 'addToLog', () => {
         this.checkLogCancel(this._last_notif == null ? null : this._last_notif.msg.uid);
         this.addLogClass();
+        this.attachRegisteredTooltips();
       });
     },
 
@@ -107,6 +107,8 @@ define(['dojo', 'dojo/_base/declare', g_gamethemeurl + 'modules/js/vendor/nouisl
     takeAction(action, data, check = true, checkLock = true) {
       if (check && !this.checkAction(action)) return false;
       if (!check && checkLock && !this.checkLock()) return false;
+      // Stop any ongoing timed button
+      this.stopActionTimer();
 
       data = data || {};
       if (data.lock === undefined) {
@@ -161,11 +163,16 @@ define(['dojo', 'dojo/_base/declare', g_gamethemeurl + 'modules/js/vendor/nouisl
       var methodName = 'onLeavingState' + stateName.charAt(0).toUpperCase() + stateName.slice(1);
       if (this[methodName] !== undefined) this[methodName]();
     },
-
-    clearPossible() {
+    clearTitleBar() {
       this.removeActionButtons();
-      dojo.empty('customActions');
-      dojo.empty('restartAction');
+      this.empty('customActions');
+      this.empty('restartAction');
+      this.empty('anytimeActions');
+      $('gameaction_status').innerHTML = '';
+      $('pagemaintitletext').innerHTML = '';
+    },
+    clearPossible() {
+      this.clearTitleBar();
 
       this._connections.forEach(dojo.disconnect);
       this._connections = [];
@@ -174,6 +181,18 @@ define(['dojo', 'dojo/_base/declare', g_gamethemeurl + 'modules/js/vendor/nouisl
       });
       this._selectableNodes = [];
       dojo.query('.unselectable').removeClass('unselectable');
+      dojo.query('.selected').removeClass('selected');
+    },
+
+    empty(container) {
+      container = $(container);
+      container.childNodes.forEach((node) => {
+        if (this.tooltips[node.id]) {
+          this.tooltips[node.id].close();
+          delete this.tooltips[node.id];
+        }
+      });
+      container.innerHTML = '';
     },
 
     /**
@@ -194,13 +213,25 @@ define(['dojo', 'dojo/_base/declare', g_gamethemeurl + 'modules/js/vendor/nouisl
     /*
      * setupNotifications
      */
+    getVisibleTitleContainer() {
+      function isVisible(elem) {
+        return !!(elem.offsetWidth || elem.offsetHeight || elem.getClientRects().length);
+      }
+
+      if (isVisible($('pagemaintitletext'))) {
+        return $('pagemaintitletext');
+      } else {
+        return $('pagemaintitletext');
+      }
+    },
+
     setupNotifications() {
       console.log(this._notifications);
       this._notifications.forEach((notif) => {
         var functionName = 'notif_' + notif[0];
 
         let wrapper = (args) => {
-          let msg = this.format_string_recursive(args.log, args.args);
+          let msg = this.formatString(this.format_string_recursive(args.log, args.args));
           if (msg != '') {
             $('gameaction_status').innerHTML = msg;
             $('pagemaintitletext').innerHTML = msg;
@@ -218,16 +249,18 @@ define(['dojo', 'dojo/_base/declare', g_gamethemeurl + 'modules/js/vendor/nouisl
             timing = this.isFastMode() ? 0 : notif[1];
           }
 
-          if (timing !== null && !isPromise(timing)) {
+          if (timing !== null) {
             this.notifqueue.setSynchronousDuration(timing);
           }
         };
 
         dojo.subscribe(notif[0], this, wrapper);
-        this.notifqueue.setSynchronous(notif[0]);
 
         if (notif[2] != undefined) {
           this.notifqueue.setIgnoreNotificationCheck(notif[0], notif[2]);
+          this.notifqueue.setSynchronous(notif[0], notif[1]); // Ignorable notif must have a default timing
+        } else {
+          this.notifqueue.setSynchronous(notif[0]);
         }
       });
 
@@ -243,21 +276,43 @@ define(['dojo', 'dojo/_base/declare', g_gamethemeurl + 'modules/js/vendor/nouisl
      * Load production bug report handler
      */
     notif_loadBug(n) {
+      let self = this;
       function fetchNextUrl() {
         var url = n.args.urls.shift();
-        console.log('Fetching URL', url);
-        dojo.xhrGet({
-          url: url,
-          load: function (success) {
-            console.log('Success for URL', url, success);
-            if (n.args.urls.length > 0) {
+        console.log('Fetching URL', url, '...');
+        // all the calls have to be made with ajaxcall in order to add the csrf token, otherwise you'll get "Invalid session information for this action. Please try reloading the page or logging in again"
+        self.ajaxcall(
+          url,
+          {
+            lock: true,
+          },
+          self,
+          function (success) {
+            console.log('=> Success ', success);
+
+            if (n.args.urls.length > 1) {
               fetchNextUrl();
-            } else {
-              console.log('Done, reloading page');
-              window.location.reload();
+            } else if (n.args.urls.length > 0) {
+              //except the last one, clearing php cache
+              url = n.args.urls.shift();
+              dojo.xhrGet({
+                url: url,
+                load: function (success) {
+                  console.log('Success for URL', url, success);
+                  console.log('Done, reloading page');
+                  window.location.reload();
+                },
+                handleAs: 'text',
+                error: function (error) {
+                  console.log('Error while loading : ', error);
+                },
+              });
             }
           },
-        });
+          function (error) {
+            if (error) console.log('=> Error ', error);
+          },
+        );
       }
       console.log('Notif: load bug', n.args);
       fetchNextUrl();
@@ -296,6 +351,7 @@ define(['dojo', 'dojo/_base/declare', g_gamethemeurl + 'modules/js/vendor/nouisl
         } else {
           debug('Timer ' + buttonId + ' execute');
           button.click();
+          this.stopActionTimer();
         }
       };
       this._actionTimerFunction();
@@ -401,9 +457,10 @@ define(['dojo', 'dojo/_base/declare', g_gamethemeurl + 'modules/js/vendor/nouisl
         if (this.prefs[pref].attribute) {
           $('ebd-body').setAttribute('data-' + this.prefs[pref].attribute, newValue);
         }
+
         $('preference_control_' + pref).value = newValue;
         if ($('preference_fontrol_' + pref)) {
-        $('preference_fontrol_' + pref).value = newValue;
+          $('preference_fontrol_' + pref).value = newValue;
         }
         data = { pref: pref, lock: false, value: newValue, player: this.player_id };
         this.takeAction('actChangePref', data, false, false);
@@ -423,7 +480,6 @@ define(['dojo', 'dojo/_base/declare', g_gamethemeurl + 'modules/js/vendor/nouisl
 
     onPreferenceChange(pref, newValue) {},
 
-    
     // Init preferences will setup local preference and put the corresponding data-attribute on overall-content div if needed
     initPreferences() {
       // Attach data attribute on overall-content div
@@ -488,6 +544,10 @@ define(['dojo', 'dojo/_base/declare', g_gamethemeurl + 'modules/js/vendor/nouisl
     /************************
      ******* SETTINGS ********
      ************************/
+    isMobile() {
+      return $('ebd-body').classList.contains('mobile_version');
+    },
+
     setupSettings() {
       dojo.connect($('show-settings'), 'onclick', () => this.toggleSettings());
       this.addTooltip('show-settings', '', _('Display some settings about the game.'));
@@ -534,7 +594,8 @@ define(['dojo', 'dojo/_base/declare', g_gamethemeurl + 'modules/js/vendor/nouisl
         }
 
         let suffix = settingName.charAt(0).toUpperCase() + settingName.slice(1);
-        let value = this.getConfig(this.game_name + suffix, config.default);
+        let defaultValue = typeof config.default === 'function' ? config.default(this.isMobile()) : config.default;
+        let value = this.getConfig(this.game_name + suffix, defaultValue);
         this.settings[settingName] = value;
 
         // Slider type => create DOM and initialize noUiSlider
@@ -648,6 +709,8 @@ define(['dojo', 'dojo/_base/declare', g_gamethemeurl + 'modules/js/vendor/nouisl
     },
 
     toggleSettings() {
+      if (!this._settingsModal) return;
+
       this._settingsModal.show();
       /*
       dojo.toggleClass('settings-controls-container', 'settingsControlsHidden');
@@ -697,7 +760,7 @@ define(['dojo', 'dojo/_base/declare', g_gamethemeurl + 'modules/js/vendor/nouisl
           beforeBrother: null,
           to: null,
 
-          phantom: false, // not sure of right value (true or false)
+          phantom: true,
         },
         options,
       );
@@ -751,15 +814,15 @@ define(['dojo', 'dojo/_base/declare', g_gamethemeurl + 'modules/js/vendor/nouisl
       return new Promise((resolve, reject) => {
         const animation =
           config.pos == null
-          ? this.slideToObject(mobile, config.to || targetId, config.duration, config.delay)
-          : this.slideToObjectPos(
-              mobile,
-              config.to || targetId,
-              config.pos.x,
-              config.pos.y,
-              config.duration,
-              config.delay,
-            );
+            ? this.slideToObject(mobile, config.to || targetId, config.duration, config.delay)
+            : this.slideToObjectPos(
+                mobile,
+                config.to || targetId,
+                config.pos.x,
+                config.pos.y,
+                config.duration,
+                config.delay,
+              );
 
         dojo.connect(animation, 'onEnd', () => {
           dojo.style(mobile, 'zIndex', null);
@@ -769,11 +832,19 @@ define(['dojo', 'dojo/_base/declare', g_gamethemeurl + 'modules/js/vendor/nouisl
             dojo.removeClass(mobileElt, 'phantom');
             mobile = mobileElt;
           }
-          if (config.changeParent) {
+          if (config.destroy) {
+            if (this.tooltips[mobile.id]) {
+              this.tooltips[mobile.id].close();
+              delete this.tooltips[mobile.id];
+            }
+            dojo.destroy(mobile);
+            resolve();
+            return;
+          }
+          if (config.changeParent || config.attach) {
             if (config.phantomEnd) dojo.place(mobile, targetId, 'replace');
             else this.changeParent(mobile, newParent);
           }
-          if (config.destroy) dojo.destroy(mobile);
           if (config.clearPos && !config.destroy) dojo.style(mobile, { top: null, left: null, position: null });
           resolve();
         });
@@ -1008,36 +1079,48 @@ define(['dojo', 'dojo/_base/declare', g_gamethemeurl + 'modules/js/vendor/nouisl
     },
     attachRegisteredTooltips() {
       Object.keys(this._registeredCustomTooltips).forEach((id) => {
-        if (!$(id)) {
-          console.error('Trying to attack tooltip on a null element', id);
-        } else {
-          this.addCustomTooltip(id, this._registeredCustomTooltips[id]);
+        if ($(id)) {
+          this.addCustomTooltip(id, this._registeredCustomTooltips[id], { forceRecreate: true });
         }
       });
       this._registeredCustomTooltips = {};
     },
-    addCustomTooltip(id, html, delay) {
-      if (this.tooltips[id]) {
-        this.tooltips[id].label = html;
+    addCustomTooltip(id, html, config = {}) {
+      config = Object.assign(
+        {
+          delay: 400,
+          midSize: true,
+          forceRecreate: false,
+        },
+        config,
+      );
+
+      // Handle dynamic content out of the box
+      let getContent = () => {
+        let content = typeof html === 'function' ? html() : html;
+        if (config.midSize) {
+          content = '<div class="midSizeDialog">' + content + '</div>';
+        }
+        return content;
+      };
+
+      if (this.tooltips[id] && !config.forceRecreate) {
+        this.tooltips[id].getContent = getContent;
         return;
       }
 
-      html = '<div class="midSizeDialog">' + html + '</div>';
-      delay = delay || 400;
       let tooltip = new dijit.Tooltip({
         //        connectId: [id],
-        label: html,
+        getContent,
         position: this.defaultTooltipPosition,
-        showDelay: delay,
+        showDelay: config.delay,
       });
       this.tooltips[id] = tooltip;
       dojo.addClass(id, 'tooltipable');
       dojo.place(
-        `
-        <div class='help-marker'>
+        `<div class='help-marker'>
           <svg><use href="#help-marker-svg" /></svg>
-        </div>
-      `,
+        </div>`,
         id,
       );
 
@@ -1058,20 +1141,33 @@ define(['dojo', 'dojo/_base/declare', g_gamethemeurl + 'modules/js/vendor/nouisl
       });
 
       tooltip.showTimeout = null;
-      dojo.connect($(id), 'mouseenter', () => {
+      dojo.connect($(id), 'mouseenter', (evt) => {
+        evt.stopPropagation();
         if (!this._helpMode && !this._dragndropMode) {
           if (tooltip.showTimeout != null) clearTimeout(tooltip.showTimeout);
 
-          tooltip.showTimeout = setTimeout(() => tooltip.open($(id)), delay);
+          tooltip.showTimeout = setTimeout(() => {
+            if ($(id)) tooltip.open($(id));
+          }, config.delay);
         }
       });
 
-      dojo.connect($(id), 'mouseleave', () => {
+      dojo.connect($(id), 'mouseleave', (evt) => {
+        evt.stopPropagation();
         if (!this._helpMode && !this._dragndropMode) {
           tooltip.close();
           if (tooltip.showTimeout != null) clearTimeout(tooltip.showTimeout);
         }
       });
+    },
+
+    destroy(elem) {
+      if (this.tooltips[elem.id]) {
+        this.tooltips[elem.id].destroy();
+        delete this.tooltips[elem.id];
+      }
+
+      elem.remove();
     },
 
     /*
@@ -1080,10 +1176,13 @@ define(['dojo', 'dojo/_base/declare', g_gamethemeurl + 'modules/js/vendor/nouisl
      */
     onPlaceLogOnChannel(msg) {
       var currentLogId = this.notifqueue.next_log_id;
+      var currentMobileLogId = this.next_log_id;
       var res = this.inherited(arguments);
       this._notif_uid_to_log_id[msg.uid] = currentLogId;
+      this._notif_uid_to_mobile_log_id[msg.uid] = currentMobileLogId;
       this._last_notif = {
         logId: currentLogId,
+        mobileLogId: currentMobileLogId,
         msg,
       };
       return res;
@@ -1105,6 +1204,10 @@ define(['dojo', 'dojo/_base/declare', g_gamethemeurl + 'modules/js/vendor/nouisl
           let logId = this._notif_uid_to_log_id[uid];
           if ($('log_' + logId)) dojo.addClass('log_' + logId, 'cancel');
         }
+        if (this._notif_uid_to_mobile_log_id.hasOwnProperty(uid)) {
+          let mobileLogId = this._notif_uid_to_mobile_log_id[uid];
+          if ($('dockedlog_' + mobileLogId)) dojo.addClass('dockedlog_' + mobileLogId, 'cancel');
+        }
       });
     },
 
@@ -1112,11 +1215,17 @@ define(['dojo', 'dojo/_base/declare', g_gamethemeurl + 'modules/js/vendor/nouisl
       if (this._last_notif == null) return;
 
       let notif = this._last_notif;
-      if ($('log_' + notif.logId)) {
-        let type = notif.msg.type;
-        if (type == 'history_history') type = notif.msg.args.originalType;
+      let type = notif.msg.type;
+      if (type == 'history_history') type = notif.msg.args.originalType;
 
+      if ($('log_' + notif.logId)) {
         dojo.addClass('log_' + notif.logId, 'notif_' + type);
+
+        var methodName = 'onAdding' + type.charAt(0).toUpperCase() + type.slice(1) + 'ToLog';
+        if (this[methodName] !== undefined) this[methodName](notif);
+      }
+      if ($('dockedlog_' + notif.mobileLogId)) {
+        dojo.addClass('dockedlog_' + notif.mobileLogId, 'notif_' + type);
       }
     },
 
@@ -1181,11 +1290,11 @@ define(['dojo', 'dojo/_base/declare', g_gamethemeurl + 'modules/js/vendor/nouisl
       o.setValue(defaultValue);
       return o;
     },
-    
+
     /****************
      ***** UTILS *****
      ****************/
-     forEachPlayer(callback) {
+    forEachPlayer(callback) {
       Object.values(this.gamedatas.players).forEach(callback);
     },
 
@@ -1209,7 +1318,7 @@ define(['dojo', 'dojo/_base/declare', g_gamethemeurl + 'modules/js/vendor/nouisl
         text = _('Cancel');
       }
 
-      this.addSecondaryActionButton('btnCancel', text, () => this.clearClientState());
+      this.addSecondaryActionButton('btnCancel', text, () => this.clearClientState(), 'restartAction');
     },
 
     clearClientState() {
@@ -1221,7 +1330,7 @@ define(['dojo', 'dojo/_base/declare', g_gamethemeurl + 'modules/js/vendor/nouisl
       if (typeof t === 'object') {
         return this.format_string_recursive(t.log, t.args);
       } else {
-        return _(t);
+        return this.format_string_recursive(t, {});
       }
     },
 
@@ -1229,43 +1338,89 @@ define(['dojo', 'dojo/_base/declare', g_gamethemeurl + 'modules/js/vendor/nouisl
       return this.format_string_recursive(log, args);
     },
 
-    onSelectN(elements, n, callback) {
+    onSelectN(options) {
+      let config = Object.assign(
+        {
+          elements: [],
+          n: 0,
+          autoConfirm: false,
+          confirmText: _('Confirm'),
+          confirmBtn: true,
+          cancelText: _('Cancel'),
+          cancelBtn: true,
+          callback: null,
+          updateCallback: null,
+          optional: false,
+          canPass: false,
+          passCallback: null,
+          btnContainer: 'customActions',
+          class: '',
+        },
+        options,
+      );
+
+      let elemIds = Object.keys(config.elements);
       let selectedElements = [];
       let updateStatus = () => {
         if ($('btnConfirmChoice')) $('btnConfirmChoice').remove();
-        if (selectedElements.length == n) {
-          this.addPrimaryActionButton('btnConfirmChoice', _('Confirm'), () => {
-            if (callback(selectedElements)) {
-              selectedElements = [];
-              updateStatus();
-            }
-          });
+        if (
+          ((config.optional === false && selectedElements.length == config.n) ||
+            (config.optional === true && selectedElements.length <= config.n)) &&
+          config.confirmBtn
+        ) {
+          let otherElems = elemIds.filter((id) => !selectedElements.includes(id));
+          if (config.autoConfirm) {
+            config.callback(selectedElements, otherElems);
+            return;
+          } else {
+            this.addPrimaryActionButton(
+              'btnConfirmChoice',
+              config.confirmText,
+              () => config.callback(selectedElements, otherElems),
+              config.btnContainer,
+            );
+          }
         }
 
         if ($('btnCancelChoice')) $('btnCancelChoice').remove();
-        if (selectedElements > 0) {
-          this.addSecondaryActionButton('btnCancelChoice', _('Cancel'), () => {
-            selectedElements = [];
-            updateStatus();
-          });
+        if (selectedElements.length > 0 && config.cancelBtn) {
+          this.addSecondaryActionButton(
+            'btnCancelChoice',
+            _('Cancel'),
+            () => {
+              selectedElements = [];
+              updateStatus();
+            },
+            config.btnContainer,
+          );
         }
 
-        Object.keys(elements).forEach((id) => {
-          let elt = elements[id];
+        elemIds.forEach((id) => {
+          let elt = config.elements[id];
           let selected = selectedElements.includes(id);
           elt.classList.toggle('selected', selected);
-          elt.classList.toggle('selectable', selected || selectedElements.length < n);
+          if (config.class != '') elt.classList.toggle(config.class, selected);
+          elt.classList.toggle('selectable', selected || selectedElements.length < config.n);
         });
+
+        if (config.updateCallback !== null) {
+          config.updateCallback(selectedElements);
+        }
       };
 
-      Object.keys(elements).forEach((id) => {
-        let elt = elements[id];
+      if ($('btnPass')) $('btnPass').remove();
+      if (config.canPass) {
+        this.addSecondaryActionButton('btnPass', _('Pass action'), () => config.passCallback(), config.btnContainer);
+      }
+
+      Object.keys(config.elements).forEach((id) => {
+        let elt = config.elements[id];
 
         this.onClick(elt, () => {
           let index = selectedElements.findIndex((t) => t == id);
 
           if (index === -1) {
-            if (selectedElements.length >= n) return;
+            if (selectedElements.length >= config.n) return;
             selectedElements.push(id);
           } else {
             selectedElements.splice(index, 1);
