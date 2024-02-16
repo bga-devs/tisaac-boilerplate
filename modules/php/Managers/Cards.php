@@ -50,7 +50,7 @@ class Cards extends \FOO\Helpers\Pieces
   /**
    * setupNewGame: create the deck of cards
    */
-  public function setupNewGame($players, $options)
+  public static function setupNewGame($players, $options)
   {
     $colors = [
       CARD_BLUE => 9,
