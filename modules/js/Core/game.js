@@ -673,8 +673,8 @@ define(['dojo', 'dojo/_base/declare', g_gamethemeurl + 'modules/js/vendor/nouisl
         <div class='row-value'>
           <label class="switch" for="setting-${setting.id}">
             <input type="checkbox" id="setting-${setting.id}" ${
-        this.settings[setting.id] == 1 ? 'checked="checked"' : ''
-      } />
+              this.settings[setting.id] == 1 ? 'checked="checked"' : ''
+            } />
             <div class="slider round"></div>
           </label>
         </div>
@@ -870,10 +870,10 @@ define(['dojo', 'dojo/_base/declare', g_gamethemeurl + 'modules/js/vendor/nouisl
       if (typeof relation == 'undefined') {
         relation = 'last';
       }
-      var src = dojo.position(mobile);
+      var src = this.getBoundingClientRectIgnoreZoom(mobile);
       dojo.style(mobile, 'position', 'absolute');
       dojo.place(mobile, new_parent, relation);
-      var tgt = dojo.position(mobile);
+      var tgt = this.getBoundingClientRectIgnoreZoom(mobile);
       var box = dojo.marginBox(mobile);
       var cbox = dojo.contentBox(mobile);
       var left = box.l + src.x - tgt.x;
