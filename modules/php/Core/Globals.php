@@ -1,7 +1,5 @@
 <?php
 namespace FOO\Core;
-use FOO\Core\Game;
-use FOO\Managers\Players;
 
 /*
  * Globals

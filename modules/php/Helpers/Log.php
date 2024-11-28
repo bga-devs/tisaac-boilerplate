@@ -1,6 +1,7 @@
 <?php
 namespace FOO\Helpers;
 use FOO\Core\Game;
+USE FOO\Core\Globals;
 use FOO\Core\Notifications;
 use FOO\Managers\Players;
 
@@ -289,5 +290,13 @@ class Log extends \APP_DbObject
         $query->update(['gamelog_notification' => addslashes(json_encode($notifs))], $id);
       }
     }
+  }
+
+  public function clearAll() {
+    // TODO
+  }
+
+  public function revertAll() {
+    // TODO
   }
 }

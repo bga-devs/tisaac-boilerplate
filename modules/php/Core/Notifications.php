@@ -1,8 +1,5 @@
 <?php
 namespace FOO\Core;
-use FOO\Managers\Players;
-use FOO\Helpers\Utils;
-use FOO\Core\Globals;
 
 class Notifications
 {
@@ -64,6 +61,18 @@ class Notifications
     //     $args['task'] = $args['task']->jsonSerialize($args['task']->getPId() == $args['player_id']);
     //   }
     // }
+  }
+
+  public static function clearTurn($currentPlayer, $notifIds){
+    // TODO
+  }
+
+  public static function refreshUI($datas) {
+    // TODO
+  }
+
+  public static function refreshHand($player, $ui) {
+    // TODO
   }
 }
 

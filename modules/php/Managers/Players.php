@@ -18,7 +18,7 @@ class Players extends \FOO\Helpers\DB_Manager
     return new \FOO\Models\Player($row);
   }
 
-  public function setupNewGame($players, $options)
+  public static function setupNewGame($players, $options)
   {
     // Create players
     $gameInfos = Game::get()->getGameinfos();
@@ -53,7 +53,7 @@ class Players extends \FOO\Helpers\DB_Manager
     return Game::get()->getCurrentPId();
   }
 
-  public function getAll()
+  public static function getAll()
   {
     $players = self::DB()->get(false);
     return $players;
@@ -83,7 +83,7 @@ class Players extends \FOO\Helpers\DB_Manager
     return self::get();
   }
 
-  public function getCurrent()
+  public static function getCurrent()
   {
     return self::get(self::getCurrentId());
   }
@@ -117,7 +117,7 @@ class Players extends \FOO\Helpers\DB_Manager
   /*
    * getUiData : get all ui data of all players
    */
-  public function getUiData($pId)
+  public static function getUiData($pId)
   {
     return self::getAll()->map(function ($player) use ($pId) {
       return $player->jsonSerialize($pId);

@@ -106,6 +106,10 @@ class foogame extends Table
     Preferences::set($this->getCurrentPId(), $pref, $value);
   }
 
+  function sendNotifications() {
+    // TODO
+  }
+
   /////////////////////////////////////////////////////////////
   // Exposing protected methods, please use at your own risk //
   /////////////////////////////////////////////////////////////
@@ -146,7 +150,7 @@ class foogame extends Table
 
     if ($state['type'] === 'multipleactiveplayer') {
       // Make sure player is in a non blocking status for role turn
-      $this->gamestate->setPlayerNonMultiactive($active_player, '');
+      $this->gamestate->setPlayerNonMultiactive($activePlayer, '');
 
       return;
     }
